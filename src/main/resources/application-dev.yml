@@ -1,0 +1,6 @@
+server:
+  port: 8080   # Dev server port
+
+app:
+  short-url:
+    base-url: http://short.ly/
