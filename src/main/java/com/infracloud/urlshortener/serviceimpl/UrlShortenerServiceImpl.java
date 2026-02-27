@@ -4,6 +4,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.infracloud.urlshortener.exception.InvalidUrlException;
+import com.infracloud.urlshortener.exception.ShortUrlNotFoundException;
 import com.infracloud.urlshortener.model.UrlMapping;
 import com.infracloud.urlshortener.repository.UrlRepository;
 import com.infracloud.urlshortener.service.UrlShortenerService;
@@ -37,6 +38,7 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
         // Check if URL already shortened
         Optional<UrlMapping> existing = repository.findByOriginalUrl(originalUrl);
         if (existing.isPresent()) {
+            log.info("URL already shortened. Returning existing short URL: {}{}", baseUrl, existing.get().getShortCode());
             return baseUrl + existing.get().getShortCode();
         }
 
@@ -46,8 +48,7 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
 
         // Save in repository
         repository.save(mapping);
-
-        log.info("Generated short code {} for URL {}", shortCode, originalUrl);
+        log.info("Generated new short code '{}' for URL '{}'", shortCode, originalUrl);
 
         return baseUrl + shortCode;
     }
@@ -59,11 +60,29 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
                 (!"http".equalsIgnoreCase(uri.getScheme()) &&
                  !"https".equalsIgnoreCase(uri.getScheme())) ||
                 uri.getHost() == null) {
+
+                log.warn("Validation failed for URL: {}", url);
                 throw new InvalidUrlException("Invalid URL format");
             }
         } catch (Exception ex) {
-            log.error("URL validation failed for {}", url);
+            log.error("URL validation threw exception for '{}': {}", url, ex.getMessage());
             throw new InvalidUrlException("Invalid URL format");
         }
+    }
+
+    @Override
+    public String getOriginalUrl(String shortCode) {
+
+        log.info("Fetching original URL for short code: {}", shortCode);
+
+        return repository.findByShortCode(shortCode)
+                .map(original -> {
+                    log.info("Found original URL '{}' for short code '{}'", original.getOriginalUrl(), shortCode);
+                    return original.getOriginalUrl();
+                })
+                .orElseThrow(() -> {
+                    log.error("Short URL not found for code: {}", shortCode);
+                    return new ShortUrlNotFoundException("Short URL not found");
+                });
     }
 }
